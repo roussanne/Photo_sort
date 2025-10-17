@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-tri_labeler.py
+Powered py GPT
+sort.py
 모션블러 / 아웃포커스 / 선명 3-클래스 자동 점수 + 수동 라벨링 도구 (Streamlit)
 
 [무엇을 하는가?]
@@ -16,7 +17,7 @@ tri_labeler.py
     # (HEIC 지원하려면)
     pip install pillow-heif
 
-    streamlit run tri_labeler.py
+    streamlit run sort.py
 """
 
 import os
