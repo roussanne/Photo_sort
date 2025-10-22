@@ -38,6 +38,42 @@ try:
     import imageio.v3 as iio
 except Exception:
     iio = None
+    
+try:
+    import pillow_heif  # type: ignore
+    _USE_HEIC = True
+except Exception:
+    pillow_heif = None
+    _USE_HEIC = False
+
+def _imread_any_local(path: str):
+    """로컬 폴백: HEIC/HEIF 지원 + 일반 이미지(CV2) 로딩"""
+    p = str(path)
+    ext = p.lower().split(".")[-1]
+    if _USE_HEIC and ext in ("heic", "heif"):
+        try:
+            heif = pillow_heif.read_heif(p)
+            from PIL import Image as _PILImage
+            img = _PILImage.frombytes(heif.mode, heif.size, heif.data, "raw").convert("RGB")
+            return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        except Exception:
+            pass
+    data = cv2.imdecode(np.fromfile(p, dtype=np.uint8), cv2.IMREAD_COLOR)
+    return data
+
+def imread_any_compat(path: str):
+    """unified_sort.imread_any 가 있으면 사용, 없으면 로컬 폴백. 항상 예외 시 None."""
+    try:
+        fn = getattr(us, "imread_any", None)
+        if callable(fn):
+            try:
+                return fn(path)
+            except Exception:
+                # unified_sort 내부 실패 시 로컬 폴백
+                return _imread_any_local(path)
+        return _imread_any_local(path)
+    except Exception:
+        return None
 
 
 # -----------------------------------------------------------------------------
@@ -68,18 +104,21 @@ def show_modal(title: str, render_fn: Callable[[], None], width: str = "large"):
 
 def load_fullres(path: str, max_side: int | None = 2048):
     """
-    원본 이미지를 로드(필요 시 리사이즈)하여 RGB ndarray 반환.
-    unified_sort.imread_any 를 사용.
+    원본 이미지를 로드(필요 시 리사이즈)하여 **RGB** ndarray 반환.
+    실패 시 None.
     """
-    img_bgr = us.imread_any(path)
-    if img_bgr is None:
+    try:
+        img_bgr = imread_any_compat(path)   # ← 'p'가 아니라 'path' 사용!
+        if img_bgr is None:
+            return None
+        h, w = img_bgr.shape[:2]
+        if max_side and max(h, w) > max_side:
+            s = max_side / max(h, w)
+            img_bgr = cv2.resize(img_bgr, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        return img_rgb
+    except Exception:
         return None
-    h, w = img_bgr.shape[:2]
-    if max_side and max(h, w) > max_side:
-        s = max_side / max(h, w)
-        img_bgr = cv2.resize(img_bgr, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    return img_rgb
 
 
 # pHash / Hamming (빠른 유사도 묶기)
@@ -104,15 +143,17 @@ def _params_key_for_cache(tiles: int, params: dict) -> str:
 
 @st.cache_data(show_spinner=False)
 def compute_scores_cached(path: str, tiles: int, params: dict, params_key: str) -> dict:
-    """(참고) us.compute_scores_advanced 를 직접 못 쓸 때, 이미지 로드-계산 캐시"""
-    img = us.imread_any(path)
-    if img is None:
+    """
+    안전 캐시: 항상 unified_sort.batch_analyze 로 1장만 분석하여 결과 반환.
+    라이브러리 내부 구현 유무와 무관하게 동작.
+    """
+    try:
+        res = us.batch_analyze([path], mode="advanced", tiles=tiles, params=params, max_workers=1)
+        return res.get(path, {})
+    except Exception:
+        # 최후 폴백: 직접 로드해 실패하지 않게 빈 dict
         return {}
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # unified_sort 에 이미 compute_scores_advanced 가 있다면 그걸 써도 됩니다.
-    # 여기서는 us.batch_analyze 를 선호하기에, 이 캐시는 라벨링 탭에서 보조적으로만 사용.
-    from unified_sort import compute_scores_advanced  # 존재한다고 가정
-    return compute_scores_advanced(gray, tiles=tiles, params=params)
+
 
 
 # -----------------------------------------------------------------------------
@@ -306,7 +347,7 @@ if is_simple:
                     base = filtered[:48] if scope == "현재 페이지" else filtered
                     items: List[Tuple[str, int]] = []
                     for p in base:
-                        img = us.imread_any(p)
+                        img = imread_any_compat(p)
                         if img is None:
                             continue
                         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -584,7 +625,7 @@ else:
 
                     items: List[Tuple[str, int]] = []
                     for p in base:
-                        img = us.imread_any(p)
+                        img = imread_any_compat(p)
                         if img is None:
                             continue
                         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
