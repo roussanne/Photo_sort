@@ -1,187 +1,92 @@
+# 📷 Unified Photo Sort (통합 이미지 품질 검사)
 
-# Tri Labeler – Sharp / Defocus / Motion 3-Class Tool
-
-A Streamlit app that scores images for **Sharp**, **Defocus (out-of-focus)**, and **Motion blur**, lets you **manually correct labels** with thumbnails, and exports a dataset ready for training (`train/sharp`, `train/defocus`, `train/motion`).
-
-https://user-images.example/tri_labeler_demo.gif
+`Unified Photo Sort`는 사진 폴더를 한 번에 훑어보고 선명도 문제를 찾아내는 Streamlit 기반 데스크탑 앱입니다. 기본 제공하는 **간단 모드**와 **고급 모드**를 오가며 빠르게 결과를 확인하거나, 세부 지표와 라벨을 조정해 학습 데이터셋까지 만들어 낼 수 있습니다. 내부 로직은 `unified_sort` 파이썬 패키지로 분리되어 있어 별도 스크립트에서도 재사용할 수 있습니다.
 
 ---
 
-## ✨ Features
-- **Auto scoring** using edge/frequency/directionality features
-- **3-class prediction** (sharp/defocus/motion) with **live weight sliders**
-- **Tile-based analysis** to catch local blur
-- **Thumbnail preview** with per-image **manual relabeling**
-- **CSV export** of labels & scores
-- **Dataset export** to `train/` (copy or move)
-- Optional **HEIC** support (iPhone photos)
+## ✨ 주요 기능
+- **간단 모드** – 폴더를 선택하고 "검사 시작"만 누르면 선명도 점수(0~100)와 판정 결과를 즉시 확인
+- **고급 모드** – 타일 기반 특징량(VoL, Tenengrad, Edge Spread 등)으로 Sharp/Defocus/Motion 점수를 동시에 산출
+- **썸네일 & 고해상도 미리보기** – 최대 48장의 썸네일을 페이지 없이 스크롤하며 확인, 필요 시 모달로 원본 확대
+- **수동 라벨 편집 및 내보내기** – 예측 결과를 드롭다운으로 수정하고 `train/{sharp,defocus,motion}` 구조로 복사/이동
+- **대용량 폴더 대응** – 멀티 스레드 처리, 하위 폴더 재귀 검색, 긴 변 리사이즈 조절 등 속도/품질 튜닝 옵션 제공
+- **HEIC / RAW(RW2) 선택 지원** – `pillow-heif`, `rawpy` 설치 시 아이폰 HEIC와 파나소닉 RAW도 바로 불러오기
 
 ---
 
-## 📦 Requirements
-
-- Python 3.9+ (3.10/3.11 recommended)
-- Packages listed in `requirements.txt`
-
-```
-streamlit
-numpy
-pandas
-opencv-python
-Pillow
-# pillow-heif      # optional for HEIC
-# scikit-image     # optional
-# scipy            # optional
-```
-
-Install everything (core set):
-```bash
-pip install -r requirements.txt
-```
-
-HEIC support (optional):
-```bash
-pip install pillow-heif
-```
+## ⚙️ 환경 요구 사항
+- Python 3.9 이상 (3.10/3.11 권장)
+- 필수 패키지: `pip install -r requirements.txt`
+  - `streamlit`, `numpy`, `pandas`, `opencv-python`, `Pillow`, `plotly`
+- 선택 패키지 (필요 시 개별 설치)
+  - HEIC/HEIF: `pip install pillow-heif`
+  - Panasonic RW2 등 RAW: `pip install rawpy imageio[v3]`
 
 ---
 
-## 🚀 Quick Start
-
-1. Put `tri_labeler.py` in a folder of your choice.
-2. (Optional) Edit the default folder path inside the app sidebar when it opens.
-3. Run the app:
+## 🚀 빠른 시작
+1. 저장소를 클론하거나 소스 코드를 다운로드합니다.
+2. (선택) 가상환경을 활성화합니다.
+3. 필수 의존성을 설치합니다.
    ```bash
-   streamlit run tri_labeler.py
+   pip install -r requirements.txt
    ```
-4. Open the browser (auto-opens) at `http://localhost:8501` (or as shown in the terminal).
+4. Streamlit 앱을 실행합니다.
+   ```bash
+   streamlit run unified-sort/app/streamlit_app.py
+   ```
+5. 브라우저에서 `http://localhost:8501`에 접속하면 UI가 열립니다.
 
-> **Important:** Do **not** run via `python tri_labeler.py` — use `streamlit run` (otherwise you’ll see `missing ScriptRunContext` warnings).
-
----
-
-## 🧭 Using the App (Overview)
-
-### 1) Sidebar – Folder & Scan
-- **Image folder path**: Root directory to scan.
-- **Include subfolders**: Recursively scan subdirectories.
-- **Resize (long side)**: Normalize resolution for stable metrics (speed vs. detail trade-off).
-
-### 2) Sidebar – Tiles & Weights
-- **Tiles (N×N)**: More tiles → better at local blur, but slower.
-- **Sharp weights**: VoL, Tenengrad, HighFreqRatio, EdgeSpread (inv), RadialSlope (inv).
-- **Defocus weights**: EdgeSpread, VoL (inv), RadialSlope (inv), Anisotropy (inv).
-- **Motion weights**: Anisotropy, StructureTensor, VoL (inv).
-
-Use tooltips (hover over each control) for **what it means**, **when to adjust**, and **tips**.
-
-### 3) Sidebar – Classification / Filter
-- **Min scores** for each class (filter weak predictions).
-- **Preview filter** to show only certain predicted class thumbnails.
-
-### 4) Main – Thumbnails & Labeling
-- Per-image **auto prediction** + **dropdown** for manual override.
-- **Page size / page index** controls at the top.
-
-### 5) Export
-- **Save CSV** → writes `labels.csv` in root folder.
-- **Export to train/** → copies or moves files under:
-  ```
-  root/
-    train/
-      sharp/
-      defocus/
-      motion/
-  ```
+> **Tip:** Windows에서 네트워크 드라이브/한글 경로를 사용할 때는 "직접 입력" 옵션으로 전체 경로를 붙여 넣으면 안정적으로 인식됩니다.
 
 ---
 
-## 🛠 Tips & Tuning
+## 🧭 앱 워크플로
+### 🎯 간단 모드
+1. 사이드바에서 폴더를 선택하고 "🔍 검사 시작"을 누릅니다.
+2. 모든 이미지에 대해 선명도 점수와 간단한 품질 판정(선명/모션/아웃포커스)을 계산합니다.
+3. "보기" 필터로 선명/흐림 이미지를 나눠 확인하고, 필요하면 고해상도 미리보기를 엽니다.
 
-- Start with a **small sample (100–300 images)** to tune weights/thresholds.
-- If **too many sharp images misclassified as blur**, lower defocus/motion weights or raise min sharp score.
-- If **motion blur** is missed, raise **Anisotropy** / **StructureTensor** weights.
-- For **bokeh-heavy portraits**, avoid pushing **EdgeSpread** too high.
-- Try **Tiles = 3–5**; raise to **5–6** for telephoto/night scenes.
-
-**Performance**: Lower the long-side resize (e.g., 896) or reduce tiles if things feel slow.
-
----
-
-## ❓ Troubleshooting
-
-**“missing ScriptRunContext” / “bare mode” warnings**  
-Run with `streamlit run tri_labeler.py` (not `python` directly).
-
-**`ModuleNotFoundError: pillow_heif`**  
-Install HEIC support: `pip install pillow-heif`, or leave HEIC images out.
-
-**OpenCV reads return `None`**  
-- File is corrupted or unsupported (install `pillow-heif` for HEIC).
-- Check file permissions / long path issues on Windows.
-
-**Slow / laggy**  
-- Lower **Tiles** and/or **Resize (long side)**.
-- Close heavy browser tabs; prefer a Chromium-based browser.
+### ⚙️ 고급 모드
+1. "🚀 전체 분석"으로 폴더 전체를 분석하면 Sharp/Defocus/Motion 세 점수가 저장됩니다.
+2. "📊 대시보드" 탭에서 최근 200개의 스코어를 데이터프레임으로 검토합니다.
+3. "🖼️ 라벨링" 탭에서 각 이미지의 예측 라벨을 확인하고 드롭다운으로 직접 수정합니다.
+4. "📦 학습셋 내보내기" 버튼으로 `train/` 하위 폴더에 복사(copy) 또는 이동(move)할 수 있습니다.
 
 ---
 
-## 📂 Project Layout (example)
+## 🧪 파이썬 API 사용 예시
+```python
+from unified_sort import list_images, batch_analyze
 
+paths = list_images("/path/to/photos", recursive=True)
+results = batch_analyze(paths, mode="advanced", tiles=4, params={"long_side": 1024})
+
+sharp_scores = {p: r["sharp_score"] for p, r in results.items()}
 ```
-your_project/
-├─ tri_labeler.py
+- `mode="simple"`을 사용하면 `score`, `type`, `quality`가 담긴 간단 선명도 결과가 반환됩니다.
+- `mode="advanced"`는 `sharp_score`, `defocus_score`, `motion_score` 및 사용된 특징량을 포함합니다.
+
+---
+
+## 🗂️ 프로젝트 구조
+```
+Photo_sort/
+├─ unified-sort/app/streamlit_app.py   # 메인 Streamlit 애플리케이션
+├─ unified-sort/src/unified_sort/      # 재사용 가능한 분석/입출력 로직
 ├─ requirements.txt
-├─ README.md
-└─ photos/                 # your images
-   ├─ img001.jpg
-   ├─ img002.jpg
-   └─ ...
-```
-
-Output after export:
-```
-photos/
-├─ labels.csv
-└─ train/
-   ├─ sharp/
-   ├─ defocus/
-   └─ motion/
+└─ readme.md
 ```
 
 ---
 
-## 🧩 Customization
-
-- Add validation/test split on export: e.g., 80/10/10.
-- Auto-normalize weights to sum to 1.
-- Add histogram plots of scores for threshold selection.
-- Extend with a small CNN to learn a combiner on top of features.
+## ❓ 문제 해결 가이드
+- **`ModuleNotFoundError: pillow_heif`** → HEIC 파일을 열어야 한다면 `pip install pillow-heif` 후 다시 실행합니다.
+- **RAW(RW2) 파일이 읽히지 않을 때** → `pip install rawpy imageio[v3]` 설치 후 앱을 재시작합니다.
+- **OpenCV가 이미지 로드에 실패** → 권한 또는 경로(특히 네트워크 드라이브) 문제일 수 있습니다. `cv2.imdecode`는 너무 긴 경로에 취약하므로 폴더를 로컬로 복사해 확인해 보세요.
+- **분석이 느릴 때** → 긴 변 리사이즈 값을 낮추거나(예: 1024 → 896), 타일 수를 줄이고, 워커 수를 4~8 사이로 조정해 보세요.
 
 ---
 
-## 📄 License
-
-This project template is provided “as is.” Add your preferred license if you plan to share or publish.
-
-
-
-
-pip install -r requirements.txt
-
-
-streamlit run "C:\Users\SSAFY\Desktop\Photo_sort\sort.py"
-
-Local URL: http://localhost:8501
-
-
-
-
-
-
-
-
-
-
-
-
+## 📄 라이선스
+현재 저장소에는 별도의 라이선스가 포함되어 있지 않습니다. 배포 전 프로젝트 정책에 맞는 라이선스를 추가해 주세요.
