@@ -1,13 +1,12 @@
-# Core dependencies
-streamlit
-numpy
-pandas
-opencv-python
-Pillow
+# Core dependencies for the Streamlit app and library
+streamlit>=1.30
+numpy>=1.23
+pandas>=1.5
+opencv-python>=4.8
+Pillow>=9.5
+plotly>=5.18
 
-# Optional: HEIC/HEIF support (uncomment to enable)
-# pillow-heif
-
-# Optional: extra image processing utilities
-# scikit-image
-# scipy
+# Optional extras -----------------------------------------------------------
+# pillow-heif    # HEIC/HEIF 이미지 로딩 지원
+# rawpy          # 파나소닉 등 RAW(RW2) 지원 시 사용
+# imageio[v3]    # rawpy 썸네일/후처리용 보조 라이브러리
