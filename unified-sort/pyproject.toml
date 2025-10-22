@@ -1,28 +1,41 @@
+
+
+### 🧱 pyproject.toml
+
+```toml
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "unified-sort"
-version = "0.1.0"
-description = "Unified image quality analysis and sorting (RW2/HEIC optional)"
+version = "1.0.0"
+description = "Streamlit 기반 이미지 품질 분석 및 분류 도구"
 readme = "README.md"
+authors = [
+    {name = "Your Name", email = "you@example.com"}
+]
+license = {text = "MIT"}
 requires-python = ">=3.9"
 dependencies = [
-  "numpy",
-  "pandas",
-  "pillow",
-  "opencv-python",       # Windows 데스크탑이면 headless 대신 일반판 권장
-  "plotly",
-  "streamlit",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "opencv-python>=4.8.0",
+    "pillow>=10.0.0",
+    "plotly>=5.18.0",
+    "streamlit>=1.35.0",
+    "tqdm>=4.65.0"
 ]
 
 [project.optional-dependencies]
-heic = ["pillow-heif"]
-raw = ["rawpy", "imageio[v3]"]
+heic = ["pillow-heif>=0.15.0"]
+raw = ["rawpy>=0.18.0", "imageio>=2.34.0"]
+deeplearn = ["torch>=2.2.0", "torchvision>=0.17.0"]
+
+dynamic = ["numpy", "torch"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[project.scripts]
+unified-sort-app = "app.streamlit_app:main"
