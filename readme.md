@@ -77,3 +77,8 @@ src/unified_sort/
 ├─ helpers.py     # 유틸 함수 (pHash, 로더, 모달 등)
 app/streamlit_app.py
 ```
+
+On process
+3클래스 CNN 학습/추론 기능 분류
+클라우드 스토리지 통합
+EXIF 활용
