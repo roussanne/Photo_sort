@@ -940,7 +940,7 @@ else:
             with col:
                 thumb = load_thumbnail(p, max_side=384)
                 if thumb is not None:
-                    st.image(thumb, use_column_width=True)
+                    st.image(thumb, use_container_width=True)
                 
                 if p in st.session_state["scores"]:
                     S = st.session_state["scores"][p]

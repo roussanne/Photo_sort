@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unified-sort"
+version = "0.1.0"
+description = "Unified image quality analysis and sorting (RW2/HEIC optional)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pillow",
+  "opencv-python",       # Windows 데스크탑이면 headless 대신 일반판 권장
+  "plotly",
+  "streamlit",
+]
+
+[project.optional-dependencies]
+heic = ["pillow-heif"]
+raw = ["rawpy", "imageio[v3]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}

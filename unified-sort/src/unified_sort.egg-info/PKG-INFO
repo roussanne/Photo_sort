@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: unified-sort
+Version: 0.1.0
+Summary: Unified image quality analysis and sorting (RW2/HEIC optional)
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: pillow
+Requires-Dist: opencv-python
+Requires-Dist: plotly
+Requires-Dist: streamlit
+Provides-Extra: heic
+Requires-Dist: pillow-heif; extra == "heic"
+Provides-Extra: raw
+Requires-Dist: rawpy; extra == "raw"
+Requires-Dist: imageio[v3]; extra == "raw"

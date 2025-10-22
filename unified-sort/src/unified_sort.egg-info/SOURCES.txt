@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+src/unified_sort/__init__.py
+src/unified_sort.egg-info/PKG-INFO
+src/unified_sort.egg-info/SOURCES.txt
+src/unified_sort.egg-info/dependency_links.txt
+src/unified_sort.egg-info/requires.txt
+src/unified_sort.egg-info/top_level.txt

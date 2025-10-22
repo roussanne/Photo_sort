@@ -1,0 +1,13 @@
+numpy
+pandas
+pillow
+opencv-python
+plotly
+streamlit
+
+[heic]
+pillow-heif
+
+[raw]
+rawpy
+imageio[v3]
