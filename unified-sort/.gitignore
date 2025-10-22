@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Build
+*.egg-info/
+dist/
+build/
+
+# Envs
+.venv/
+.env/
+venv/
+env/
+
+# Streamlit cache
+.streamlit/
+cache/
+
+# OS
+.DS_Store
+Thumbs.db

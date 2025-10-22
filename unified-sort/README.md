@@ -1,120 +1,79 @@
-### 📘 README.md
+# 📷 Unified Image Quality Classifier
 
-# 📷 Unified Sort — 통합 이미지 품질 검사 및 분류 도구
-
-> Streamlit 기반의 이미지 품질 분석·분류 툴  
-> 간단 모드(빠른 선명도 검사)와 고급 모드(다중 특징 분석 + 라벨링 + 학습셋 생성)를 지원합니다.
+**Streamlit 기반 통합 이미지 품질 분석 도구**  
+하나의 앱으로 간단 모드와 고급 모드를 전환해  
+사진의 선명도, 아웃포커스, 모션블러를 자동 판별하고  
+유사도 묶기·자동 태깅·RAW 변환까지 수행합니다.
 
 ---
 
-## 🧩 주요 기능
+## ✨ Features
 
 ### 🎯 간단 모드
-- 빠른 선명도 측정 (`Laplacian`, `Sobel`, `Edge` 기반)
-- 선명 / 흐림 자동 구분
-- 흐린 사진 자동 이동·삭제 기능
-- 점수 CSV 내보내기
+- Laplacian 기반 빠른 선명도 검사
+- 흐린 사진 탐지 및 이동/삭제
+- CSV 내보내기
+- 파일명 자동 태깅
+- 유사도(pHash) 그룹화
+- RW2 → JPG 변환 (`rawpy` 또는 `imageio.v3`)
+- HEIC/HEIF 지원 (`pillow-heif`)
+- 휴지통 삭제 (`send2trash`)
 
 ### ⚙️ 고급 모드
-- 이미지의 다중 저수준 특징 분석
-- 3-클래스 분류: `sharp`, `defocus`, `motion`
-- 타일링 기반 국소 분석
-- 멀티프로세싱 지원
-- 라벨링 UI 및 학습셋 내보내기
-- CNN 실험 모듈(선택)
-
-### 🧠 추가 기능
-- RW2, HEIC 등 RAW 파일 자동 변환 지원
-- 고해상도 프리뷰 (`st.dialog` 기반, 자동 폴백)
-- 자동/수동 라벨링 및 폴더 분류
-- 유사도 기반 이미지 분류(옵션)
+- 7가지 저수준 특징(VoL, Tenengrad 등)
+- 멀티프로세싱 / 타일 분석
+- 자동 라벨링 / 수동 라벨 교정
+- pHash 근사중복 탐지
+- 학습셋 내보내기(copy/move)
+- 라벨 CSV 입출력
 
 ---
 
-## 📦 설치 방법
+## 🧩 Requirements
 
-### 1. 가상환경 생성
-```bash
-python -m venv .venv
-source .venv/Scripts/activate  # Windows
-# or
-source .venv/bin/activate      # macOS/Linux
-```
+| 타입 | 패키지 | 설명 |
+|------|--------|------|
+| 필수 | `streamlit>=1.25` | UI 프레임워크 |
+| 필수 | `opencv-python>=4.8` | 영상 처리 |
+| 필수 | `numpy>=1.24` | 수치 연산 |
+| 필수 | `pandas>=2.0` | 데이터 정리 |
+| 필수 | `pillow>=9.5` | 이미지 I/O |
+| 선택 | `pillow-heif>=0.13` | HEIC/HEIF 로드 |
+| 선택 | `rawpy>=0.18` | RAW(RW2) 현상 |
+| 선택 | `imageio>=2.31` | RAW 폴백 |
+| 선택 | `send2trash>=1.8` | 안전 삭제 |
 
-### 2. 소스 설치 (editable 모드)
+> Streamlit ≥ 1.36이면 `st.dialog` 모달 UI, 미만이면 자동 인라인 폴백.
+
+---
+
+## ⚙️ Installation
+
 ```bash
-git clone https://github.com/yourname/unified-sort.git
-cd unified-sort
+# 1️⃣ 개발 모드 설치
 pip install -e .
+
+# 2️⃣ 필요 패키지 설치
+pip install -r requirements.txt
 ```
 
-### 3. 실행
+---
+
+## 🚀 Run
+
 ```bash
 streamlit run app/streamlit_app.py
 ```
 
 ---
 
-## 🧰 폴더 구조
+## 📂 Structure
+
 ```
-unified-sort/
-│
-├─ pyproject.toml          # 프로젝트 설정
-├─ requirements.txt        # 필수 패키지 목록
-├─ README.md
-│
-├─ unified_sort/           # 라이브러리 (기능별 모듈화)
-│   ├─ __init__.py
-│   ├─ io.py
-│   ├─ preview.py
-│   ├─ features.py
-│   ├─ analysis.py
-│   ├─ metrics.py
-│   ├─ batch.py
-│   ├─ export.py
-│   ├─ utils.py
-│   ├─ types.py
-│   └─ models.py
-│
-└─ app/
-    └─ streamlit_app.py    # Streamlit 인터페이스
+src/unified_sort/
+├─ __init__.py
+├─ core.py        # 품질 분석/점수 계산
+├─ io_utils.py    # 이미지 입출력 (HEIC, RAW 등)
+├─ helpers.py     # 유틸 함수 (pHash, 로더, 모달 등)
+app/streamlit_app.py
 ```
-
----
-
-## ⚙️ Requirements
-
-| Category | Libraries |
-|-----------|------------|
-| Core | `numpy`, `pandas`, `opencv-python`, `pillow`, `plotly` |
-| Web UI | `streamlit>=1.35` (≥1.36 시 모달 팝업 자동 활성화) |
-| Parallel Processing | `multiprocessing`, `tqdm` |
-| Optional (RAW) | `pillow-heif`, `rawpy`, `imageio` |
-| Optional (DL) | `torch`, `torchvision` |
-
----
-
-## 🧠 사용 예시
-```bash
-# 폴더 내 이미지 자동 분석
-python -m unified_sort --mode simple --path ./images
-
-# Streamlit GUI 실행
-streamlit run app/streamlit_app.py
-```
-
----
-
-## 🧩 개발 팁
-- RW2 변환 시 `imageio[ffmpeg]` 또는 `rawpy` 설치 필요
-- GPU가 있다면 `torch.cuda.is_available()` 자동 감지
-- Streamlit 1.36 이상이면 `st.dialog()` 기반 고해상도 팝업 작동
-- 구버전 Streamlit도 자동 폴백되어 문제없이 실행됩니다.
-
----
-
-## 🪪 License
-MIT License  
-Copyright © 2025
-
----

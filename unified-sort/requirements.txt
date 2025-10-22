@@ -1,27 +1,12 @@
-### 🧾 requirements.txt
-
-```
 # Core
-numpy>=1.24.0
-pandas>=2.0.0
-opencv-python>=4.8.0
-pillow>=10.0.0
-plotly>=5.18.0
+streamlit>=1.25
+opencv-python>=4.8
+numpy>=1.24
+pandas>=2.0
+pillow>=9.5
 
-# Web UI
-streamlit>=1.35.0
-
-# Parallel Processing
-tqdm>=4.65.0
-
-# Optional (RAW, HEIC)
-pillow-heif>=0.15.0
-rawpy>=0.18.0
-imageio>=2.34.0
-
-# Deep Learning (Optional)
-torch>=2.2.0
-torchvision>=0.17.0
-```
-
----
+# Optional
+pillow-heif>=0.13
+rawpy>=0.18
+imageio>=2.31
+send2trash>=1.8
