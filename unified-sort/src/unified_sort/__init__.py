@@ -14,7 +14,10 @@ from .helpers import (
     phash_from_gray,
     hamming_dist,
     make_widget_key,
+
 )
+from .pipeline import analyze_one_full_hybrid, batch_analyze_full_hybrid
+
 
 __all__ = [
     "list_images",
@@ -27,4 +30,8 @@ __all__ = [
     "phash_from_gray",
     "hamming_dist",
     "make_widget_key",
+    "analyze_one_full_hybrid",
+    "batch_analyze_full_hybrid",
 ]
+
+
