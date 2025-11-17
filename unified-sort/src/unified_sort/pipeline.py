@@ -399,6 +399,32 @@ def analyze_one_full_hybrid(path: str, params: dict) -> Dict[str, Any]:
     return scores
 
 
+def _analyze_hybrid_single(args: tuple) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """
+    단일 이미지를 하이브리드 방식으로 분석하는 헬퍼 함수 (multiprocessing용).
+
+    ProcessPoolExecutor와 함께 사용하기 위한 top-level 함수입니다.
+
+    Args:
+        args: (path, params) 튜플
+
+    Returns:
+        (path, score_dict) 튜플, 실패 시 (path, None)
+    """
+    path, params = args
+
+    try:
+        score_dict = analyze_one_full_hybrid(path, params=params)
+        # 유효한 결과만 반환
+        if score_dict and isinstance(score_dict, dict):
+            return (path, score_dict)
+        else:
+            return (path, None)
+    except Exception as e:
+        print(f"Warning: Failed to analyze {path}: {e}")
+        return (path, None)
+
+
 def batch_analyze_full_hybrid(
     paths: List[str],
     params: dict,
@@ -406,34 +432,61 @@ def batch_analyze_full_hybrid(
 ) -> Dict[str, Dict[str, Any]]:
     """
     여러 이미지를 하이브리드 파이프라인으로 배치 분석합니다.
-    
-    현재는 순차 처리이지만, max_workers 파라미터를 통해
-    향후 멀티프로세싱이나 스레드풀을 쉽게 추가할 수 있습니다.
-    
+
+    max_workers > 1일 경우 ProcessPoolExecutor를 사용하여 병렬 처리합니다.
+
     Args:
         paths: 분석할 이미지 파일 경로 리스트
         params: 분석 파라미터 딕셔너리 (analyze_one_full_hybrid 참조)
-        max_workers: 병렬 처리 워커 수 (현재 미사용, 향후 확장용)
-    
+        max_workers: 병렬 처리 워커 수 (1=순차, >1=병렬)
+
     Returns:
         경로를 키로 하는 점수 딕셔너리의 딕셔너리
         {path: {sharp_score: ..., defocus_score: ..., ...}}
     """
     results: Dict[str, Dict[str, Any]] = {}
-    
-    # TODO: max_workers > 1인 경우 멀티프로세싱 풀 사용
-    # from multiprocessing import Pool
-    # with Pool(processes=max_workers) as pool:
-    #     results = pool.map(...)
-    
-    for path in paths:
+
+    # 병렬 처리 또는 순차 처리 선택
+    if max_workers > 1 and len(paths) > 1:
+        # 병렬 처리 (CPU 집약적 작업이므로 ProcessPoolExecutor 사용)
         try:
-            score_dict = analyze_one_full_hybrid(path, params=params)
-            # 유효한 결과만 저장
-            if score_dict and isinstance(score_dict, dict):
-                results[path] = score_dict
-        except Exception as e:
-            print(f"Warning: Failed to analyze {path}: {e}")
-            # 개별 이미지 실패가 전체 배치를 멈추지 않도록 계속 진행
-    
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+
+            # 작업 인자 준비
+            tasks = [(path, params) for path in paths]
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # 작업 제출
+                future_to_path = {
+                    executor.submit(_analyze_hybrid_single, task): task[0]
+                    for task in tasks
+                }
+
+                # 결과 수집
+                for future in as_completed(future_to_path):
+                    try:
+                        path, score_dict = future.result()
+                        if score_dict is not None:
+                            results[path] = score_dict
+                    except Exception as e:
+                        path = future_to_path[future]
+                        print(f"Warning: Failed to get result for {path}: {e}")
+
+        except (ImportError, OSError) as e:
+            # ProcessPoolExecutor 사용 불가 시 순차 처리로 폴백
+            print(f"Warning: Parallel processing failed, falling back to sequential: {e}")
+            max_workers = 1
+
+    # 순차 처리 (max_workers=1 또는 폴백)
+    if max_workers == 1:
+        for path in paths:
+            try:
+                score_dict = analyze_one_full_hybrid(path, params=params)
+                # 유효한 결과만 저장
+                if score_dict and isinstance(score_dict, dict):
+                    results[path] = score_dict
+            except Exception as e:
+                print(f"Warning: Failed to analyze {path}: {e}")
+                # 개별 이미지 실패가 전체 배치를 멈추지 않도록 계속 진행
+
     return results

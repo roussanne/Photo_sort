@@ -501,110 +501,232 @@ def compute_scores_advanced(
     }
 
 
+def _analyze_single_image(args: tuple) -> Tuple[str, Optional[dict]]:
+    """
+    단일 이미지를 분석하는 헬퍼 함수 (multiprocessing용).
+
+    ProcessPoolExecutor와 함께 사용하기 위한 top-level 함수입니다.
+
+    Args:
+        args: (path, mode, tiles, params) 튜플
+
+    Returns:
+        (path, result_dict) 튜플, 실패 시 (path, None)
+    """
+    path, mode, tiles, params = args
+
+    try:
+        from .io_utils import imread_any
+
+        img = imread_any(path)
+        if img is None:
+            return (path, None)
+
+        # 그레이스케일 변환
+        try:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        except Exception:
+            return (path, None)
+
+        if mode == "simple":
+            # 간단 모드: 라플라시안 기반 빠른 분석
+            try:
+                lap = cv2.Laplacian(gray, cv2.CV_64F).var()
+                edge = cv2.Sobel(gray, cv2.CV_64F, 1, 1, ksize=3)
+                edge_mean = float(np.mean(np.abs(edge)))
+
+                # 0-100 스케일로 정규화
+                sharpness_score = min(100.0, lap / 5.0)
+                edge_score = min(100.0, edge_mean / 0.1)
+
+                # 가중 평균
+                combined_score = 0.6 * sharpness_score + 0.4 * edge_score
+
+                # 타입 판별 (간단한 임계값 기반)
+                if combined_score > 60:
+                    blur_type = "선명 ✅"
+                    quality = "좋음"
+                else:
+                    # 방향성 체크 (간단 버전)
+                    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+                    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+                    mag = np.sqrt(gx*gx + gy*gy) + 1e-8
+                    ang = (np.arctan2(gy, gx) + np.pi)
+                    hist, _ = np.histogram(ang, bins=18, range=(0, 2*np.pi), weights=mag)
+                    direction_std = float(np.std(hist / (hist.sum() + 1e-8)))
+
+                    if direction_std > 0.08:
+                        blur_type = "모션블러 📸"
+                        quality = "흐림 (움직임)"
+                    else:
+                        blur_type = "아웃포커스 🌫️"
+                        quality = "흐림 (초점)"
+
+                result = {
+                    "score": round(combined_score, 1),
+                    "type": blur_type,
+                    "quality": quality,
+                    "laplacian": round(lap, 2),
+                    "edge": round(edge_mean, 2),
+                    "direction": 0.0,
+                }
+                return (path, result)
+
+            except Exception as e:
+                print(f"Warning: Simple analysis failed for {path}: {e}")
+                return (path, None)
+
+        else:
+            # 고급 모드: 다중 특징 기반 분석
+            try:
+                result = compute_scores_advanced(gray, tiles=tiles, params=params)
+                return (path, result)
+            except Exception as e:
+                print(f"Warning: Advanced analysis failed for {path}: {e}")
+                return (path, None)
+
+    except Exception as e:
+        print(f"Warning: Failed to process {path}: {e}")
+        return (path, None)
+
+
 def batch_analyze(
-    paths: List[str], 
-    mode: str = "simple", 
-    tiles: int = 4, 
-    params: Optional[dict] = None, 
+    paths: List[str],
+    mode: str = "simple",
+    tiles: int = 4,
+    params: Optional[dict] = None,
     max_workers: int = 1
 ) -> Dict[str, dict]:
     """
     여러 이미지를 배치로 분석합니다.
-    
+
     간단 모드(simple)는 라플라시안 기반의 빠른 분석을,
     고급 모드(advanced)는 더 정교한 다중 특징 분석을 수행합니다.
-    
+
     Args:
         paths: 분석할 이미지 경로 리스트
         mode: "simple" 또는 "advanced"
         tiles: 타일 개수 (advanced 모드에서만 사용)
         params: 추가 분석 파라미터
-        max_workers: 병렬 처리 워커 수 (현재 미사용)
-    
+        max_workers: 병렬 처리 워커 수 (1=순차, >1=병렬)
+
     Returns:
         {경로: 점수딕셔너리} 형태의 결과
     """
-    from .io_utils import imread_any
-    
     if params is None:
         params = {}
-    
+
     results = {}
-    
-    for path in paths:
+
+    # 병렬 처리 또는 순차 처리 선택
+    if max_workers > 1 and len(paths) > 1:
+        # 병렬 처리 (CPU 집약적 작업이므로 ProcessPoolExecutor 사용)
         try:
-            img = imread_any(path)
-            if img is None:
-                continue
-            
-            # 그레이스케일 변환
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+
+            # 작업 인자 준비
+            tasks = [(path, mode, tiles, params) for path in paths]
+
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                # 작업 제출
+                future_to_path = {
+                    executor.submit(_analyze_single_image, task): task[0]
+                    for task in tasks
+                }
+
+                # 결과 수집
+                for future in as_completed(future_to_path):
+                    try:
+                        path, result = future.result()
+                        if result is not None:
+                            results[path] = result
+                    except Exception as e:
+                        path = future_to_path[future]
+                        print(f"Warning: Failed to get result for {path}: {e}")
+
+        except (ImportError, OSError) as e:
+            # ProcessPoolExecutor 사용 불가 시 순차 처리로 폴백
+            print(f"Warning: Parallel processing failed, falling back to sequential: {e}")
+            max_workers = 1
+
+    # 순차 처리 (max_workers=1 또는 폴백)
+    if max_workers == 1:
+        from .io_utils import imread_any
+
+        for path in paths:
             try:
-                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            except Exception:
-                # 이미 그레이스케일이거나 변환 불가능
-                continue
-            
-            if mode == "simple":
-                # 간단 모드: 라플라시안 기반 빠른 분석
+                img = imread_any(path)
+                if img is None:
+                    continue
+
+                # 그레이스케일 변환
                 try:
-                    lap = cv2.Laplacian(gray, cv2.CV_64F).var()
-                    edge = cv2.Sobel(gray, cv2.CV_64F, 1, 1, ksize=3)
-                    edge_mean = float(np.mean(np.abs(edge)))
-                    
-                    # 0-100 스케일로 정규화
-                    sharpness_score = min(100.0, lap / 5.0)
-                    edge_score = min(100.0, edge_mean / 0.1)
-                    
-                    # 가중 평균
-                    combined_score = 0.6 * sharpness_score + 0.4 * edge_score
-                    
-                    # 타입 판별 (간단한 임계값 기반)
-                    if combined_score > 60:
-                        blur_type = "선명 ✅"
-                        quality = "좋음"
-                    else:
-                        # 방향성 체크 (간단 버전)
-                        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-                        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-                        mag = np.sqrt(gx*gx + gy*gy) + 1e-8
-                        ang = (np.arctan2(gy, gx) + np.pi)
-                        hist, _ = np.histogram(ang, bins=18, range=(0, 2*np.pi), weights=mag)
-                        direction_std = float(np.std(hist / (hist.sum() + 1e-8)))
-                        
-                        if direction_std > 0.08:
-                            blur_type = "모션블러 📸"
-                            quality = "흐림 (움직임)"
+                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                except Exception:
+                    # 이미 그레이스케일이거나 변환 불가능
+                    continue
+
+                if mode == "simple":
+                    # 간단 모드: 라플라시안 기반 빠른 분석
+                    try:
+                        lap = cv2.Laplacian(gray, cv2.CV_64F).var()
+                        edge = cv2.Sobel(gray, cv2.CV_64F, 1, 1, ksize=3)
+                        edge_mean = float(np.mean(np.abs(edge)))
+
+                        # 0-100 스케일로 정규화
+                        sharpness_score = min(100.0, lap / 5.0)
+                        edge_score = min(100.0, edge_mean / 0.1)
+
+                        # 가중 평균
+                        combined_score = 0.6 * sharpness_score + 0.4 * edge_score
+
+                        # 타입 판별 (간단한 임계값 기반)
+                        if combined_score > 60:
+                            blur_type = "선명 ✅"
+                            quality = "좋음"
                         else:
-                            blur_type = "아웃포커스 🌫️"
-                            quality = "흐림 (초점)"
-                    
-                    results[path] = {
-                        "score": round(combined_score, 1),
-                        "type": blur_type,
-                        "quality": quality,
-                        "laplacian": round(lap, 2),
-                        "edge": round(edge_mean, 2),
-                        "direction": 0.0,
-                    }
-                    
-                except Exception as e:
-                    print(f"Warning: Simple analysis failed for {path}: {e}")
-                    continue
-                    
-            else:
-                # 고급 모드: 다중 특징 기반 분석
-                try:
-                    results[path] = compute_scores_advanced(
-                        gray, 
-                        tiles=tiles, 
-                        params=params
-                    )
-                except Exception as e:
-                    print(f"Warning: Advanced analysis failed for {path}: {e}")
-                    continue
-                    
-        except Exception as e:
-            print(f"Warning: Failed to process {path}: {e}")
-            continue
-    
+                            # 방향성 체크 (간단 버전)
+                            gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+                            gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+                            mag = np.sqrt(gx*gx + gy*gy) + 1e-8
+                            ang = (np.arctan2(gy, gx) + np.pi)
+                            hist, _ = np.histogram(ang, bins=18, range=(0, 2*np.pi), weights=mag)
+                            direction_std = float(np.std(hist / (hist.sum() + 1e-8)))
+
+                            if direction_std > 0.08:
+                                blur_type = "모션블러 📸"
+                                quality = "흐림 (움직임)"
+                            else:
+                                blur_type = "아웃포커스 🌫️"
+                                quality = "흐림 (초점)"
+
+                        results[path] = {
+                            "score": round(combined_score, 1),
+                            "type": blur_type,
+                            "quality": quality,
+                            "laplacian": round(lap, 2),
+                            "edge": round(edge_mean, 2),
+                            "direction": 0.0,
+                        }
+
+                    except Exception as e:
+                        print(f"Warning: Simple analysis failed for {path}: {e}")
+                        continue
+
+                else:
+                    # 고급 모드: 다중 특징 기반 분석
+                    try:
+                        results[path] = compute_scores_advanced(
+                            gray,
+                            tiles=tiles,
+                            params=params
+                        )
+                    except Exception as e:
+                        print(f"Warning: Advanced analysis failed for {path}: {e}")
+                        continue
+
+            except Exception as e:
+                print(f"Warning: Failed to process {path}: {e}")
+                continue
+
     return results
