@@ -152,6 +152,114 @@ except (ImportError, ModuleNotFoundError) as e:
         raise NotImplementedError("Auto sort not available")
 
 # =====================================================================
+# 얼굴 검출 모듈 임포트
+# =====================================================================
+
+try:
+    from .detection import (
+        detect_faces,
+        compute_face_region_sharpness,
+        apply_face_prior,
+        get_face_coverage_ratio,
+        visualize_face_detection,
+    )
+    _DETECTION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: Detection module import failed: {e}")
+    _DETECTION_AVAILABLE = False
+    def detect_faces(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def compute_face_region_sharpness(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def apply_face_prior(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def get_face_coverage_ratio(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def visualize_face_detection(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+
+# =====================================================================
+# EXIF 메타데이터 모듈 임포트
+# =====================================================================
+
+try:
+    from .exif_adjust import (
+        extract_exif_data,
+        compute_exif_adjustment_factors,
+        apply_exif_adjustment,
+        get_blur_risk_assessment,
+    )
+    _EXIF_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: EXIF module import failed: {e}")
+    _EXIF_AVAILABLE = False
+    def extract_exif_data(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def compute_exif_adjustment_factors(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def apply_exif_adjustment(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def get_blur_risk_assessment(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+
+# =====================================================================
+# Deep Learning NR-IQA 모듈 임포트
+# =====================================================================
+
+try:
+    from .nn_iqa import (
+        NNQuality,
+        get_model,
+        unload_model,
+        predict_quality,
+        fuse_scores,
+        is_available as nn_is_available,
+        get_device_info,
+    )
+    _NN_IQA_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: NN-IQA module import failed: {e}")
+    _NN_IQA_AVAILABLE = False
+    def NNQuality(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def get_model(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def unload_model(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def predict_quality(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def fuse_scores(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def nn_is_available(*args, **kwargs):
+        return False
+    def get_device_info(*args, **kwargs):
+        return {"torch_available": False}
+
+# =====================================================================
+# Google Drive 통합 모듈 임포트
+# =====================================================================
+
+try:
+    from .gdrive import (
+        GDriveUploader,
+        is_available as gdrive_is_available,
+        setup_credentials,
+        get_credentials_instructions,
+    )
+    _GDRIVE_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: Google Drive module import failed: {e}")
+    _GDRIVE_AVAILABLE = False
+    def GDriveUploader(*args, **kwargs):
+        raise NotImplementedError("Google Drive module not available")
+    def gdrive_is_available(*args, **kwargs):
+        return False
+    def setup_credentials(*args, **kwargs):
+        raise NotImplementedError("Google Drive module not available")
+    def get_credentials_instructions(*args, **kwargs):
+        return "Google Drive integration not available (dependencies not installed)"
+
+# =====================================================================
 # 공개 API 정의
 # =====================================================================
 
@@ -188,6 +296,34 @@ __all__ = [
     "compute_adaptive_thresholds",
     "get_classification_stats",
     "suggest_config_adjustments",
+
+    # 얼굴 검출
+    "detect_faces",
+    "compute_face_region_sharpness",
+    "apply_face_prior",
+    "get_face_coverage_ratio",
+    "visualize_face_detection",
+
+    # EXIF 메타데이터
+    "extract_exif_data",
+    "compute_exif_adjustment_factors",
+    "apply_exif_adjustment",
+    "get_blur_risk_assessment",
+
+    # Deep Learning NR-IQA
+    "NNQuality",
+    "get_model",
+    "unload_model",
+    "predict_quality",
+    "fuse_scores",
+    "nn_is_available",
+    "get_device_info",
+
+    # Google Drive 통합
+    "GDriveUploader",
+    "gdrive_is_available",
+    "setup_credentials",
+    "get_credentials_instructions",
 ]
 
 # =====================================================================
@@ -197,7 +333,7 @@ __all__ = [
 def check_installation() -> dict:
     """
     패키지의 설치 상태를 확인합니다.
-    
+
     Returns:
         각 모듈의 사용 가능 여부를 담은 딕셔너리
     """
@@ -207,6 +343,10 @@ def check_installation() -> dict:
         "helpers": _HELPERS_AVAILABLE,
         "pipeline": _PIPELINE_AVAILABLE,
         "auto_sort": _AUTO_SORT_AVAILABLE,
+        "detection": _DETECTION_AVAILABLE,
+        "exif": _EXIF_AVAILABLE,
+        "nn_iqa": _NN_IQA_AVAILABLE,
+        "gdrive": _GDRIVE_AVAILABLE,
     }
     
     # 선택적 의존성 체크
@@ -246,10 +386,10 @@ def print_status():
     print("=" * 50)
     
     print("\n[Core Modules]")
-    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort"]:
+    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif", "nn_iqa", "gdrive"]:
         symbol = "✓" if status.get(module, False) else "✗"
         print(f"  {symbol} {module}")
-    
+
     print("\n[Optional Features]")
     features = {
         "heif_support": "HEIC/HEIF images (iPhone photos)",
@@ -263,10 +403,10 @@ def print_status():
         print(f"  {symbol} {description}")
     
     print("\n" + "=" * 50)
-    
+
     # 권장 사항
     missing = [k for k, v in status.items() if not v and k in features]
-    if missing:
+    if missing or not status.get("gdrive", False):
         print("\nTo enable all features, install:")
         if "heif_support" in missing:
             print("  pip install pillow-heif")
@@ -276,6 +416,8 @@ def print_status():
             print("  pip install send2trash")
         if "pytorch" in missing:
             print("  pip install torch torchvision")
+        if not status.get("gdrive", False):
+            print("  pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
 
 
 # =====================================================================
