@@ -149,6 +149,237 @@ def compute_scores_cached(path: str, tiles: int, params: dict, params_key: str) 
 
 
 # ---------------------------------------------------------------------
+# 메트릭스 대시보드
+# ---------------------------------------------------------------------
+def show_metrics_dashboard(scores: Dict[str, dict], analysis_time: float = 0.0):
+    """
+    분석 결과에 대한 종합 메트릭스 대시보드를 표시합니다.
+
+    Args:
+        scores: 분석 결과 딕셔너리 {path: {sharp_score, defocus_score, motion_score}}
+        analysis_time: 총 분석 시간 (초)
+    """
+    if not scores:
+        st.warning("분석 결과가 없습니다.")
+        return
+
+    # 데이터 준비
+    df = pd.DataFrame([
+        {
+            "path": p,
+            "sharp": sc.get("sharp_score", 0),
+            "defocus": sc.get("defocus_score", 0),
+            "motion": sc.get("motion_score", 0)
+        }
+        for p, sc in scores.items()
+    ])
+
+    # 분류 (argmax)
+    df["predicted_class"] = df[["sharp", "defocus", "motion"]].apply(
+        lambda row: row.idxmax(), axis=1
+    )
+
+    # 신뢰도 (최고 점수)
+    df["confidence"] = df[["sharp", "defocus", "motion"]].max(axis=1)
+
+    # 전체 품질 (sharp 점수 기준)
+    df["quality_score"] = df["sharp"]
+
+    st.markdown("### 📊 분석 결과 대시보드")
+
+    # Row 1: 기본 통계
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            label="📷 총 이미지 수",
+            value=f"{len(scores):,}",
+            help="분석된 전체 이미지 개수"
+        )
+
+    with col2:
+        avg_confidence = df["confidence"].mean()
+        st.metric(
+            label="🎯 평균 신뢰도",
+            value=f"{avg_confidence:.1%}",
+            delta=f"{(avg_confidence - 0.5):.1%}" if avg_confidence > 0.5 else f"{(avg_confidence - 0.5):.1%}",
+            help="분류 신뢰도 (최고 점수의 평균)"
+        )
+
+    with col3:
+        avg_quality = df["quality_score"].mean()
+        st.metric(
+            label="✨ 평균 품질",
+            value=f"{avg_quality:.1%}",
+            help="선명도 점수 평균"
+        )
+
+    with col4:
+        if analysis_time > 0:
+            images_per_sec = len(scores) / analysis_time
+            st.metric(
+                label="⚡ 처리 속도",
+                value=f"{images_per_sec:.1f} img/s",
+                help=f"총 {analysis_time:.1f}초 소요"
+            )
+        else:
+            st.metric(label="⚡ 처리 속도", value="N/A")
+
+    st.divider()
+
+    # Row 2: 분류 분포
+    st.markdown("#### 📈 분류 분포")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    sharp_count = (df["predicted_class"] == "sharp").sum()
+    defocus_count = (df["predicted_class"] == "defocus").sum()
+    motion_count = (df["predicted_class"] == "motion").sum()
+    total = len(df)
+
+    with col1:
+        sharp_pct = sharp_count / total * 100 if total > 0 else 0
+        st.metric(
+            label="선명 ✅",
+            value=f"{sharp_count}",
+            delta=f"{sharp_pct:.1f}%",
+            help="선명하게 촬영된 이미지"
+        )
+
+    with col2:
+        defocus_pct = defocus_count / total * 100 if total > 0 else 0
+        st.metric(
+            label="아웃포커스 🌫️",
+            value=f"{defocus_count}",
+            delta=f"{defocus_pct:.1f}%",
+            help="초점이 맞지 않은 이미지"
+        )
+
+    with col3:
+        motion_pct = motion_count / total * 100 if total > 0 else 0
+        st.metric(
+            label="모션블러 📸",
+            value=f"{motion_count}",
+            delta=f"{motion_pct:.1f}%",
+            help="움직임으로 인한 흐림"
+        )
+
+    with col4:
+        # 불확실한 이미지 (신뢰도 < 50%)
+        uncertain_count = (df["confidence"] < 0.5).sum()
+        uncertain_pct = uncertain_count / total * 100 if total > 0 else 0
+        st.metric(
+            label="불확실 ⚠️",
+            value=f"{uncertain_count}",
+            delta=f"{uncertain_pct:.1f}%",
+            help="신뢰도가 낮은 이미지 (수동 검토 권장)"
+        )
+
+    st.divider()
+
+    # Row 3: 품질 히스토그램
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 📊 품질 분포 (선명도 점수)")
+        # 히스토그램
+        quality_bins = [0, 0.3, 0.5, 0.7, 0.9, 1.0]
+        quality_labels = ["매우 낮음", "낮음", "중간", "높음", "매우 높음"]
+        df["quality_category"] = pd.cut(
+            df["quality_score"],
+            bins=quality_bins,
+            labels=quality_labels,
+            include_lowest=True
+        )
+        quality_dist = df["quality_category"].value_counts().sort_index()
+
+        # 막대 차트
+        st.bar_chart(quality_dist)
+
+    with col2:
+        st.markdown("#### 🎯 신뢰도 분포")
+        # 신뢰도 히스토그램
+        confidence_bins = [0, 0.3, 0.5, 0.7, 0.9, 1.0]
+        confidence_labels = ["매우 낮음", "낮음", "중간", "높음", "매우 높음"]
+        df["confidence_category"] = pd.cut(
+            df["confidence"],
+            bins=confidence_bins,
+            labels=confidence_labels,
+            include_lowest=True
+        )
+        confidence_dist = df["confidence_category"].value_counts().sort_index()
+
+        st.bar_chart(confidence_dist)
+
+    st.divider()
+
+    # Row 4: 상세 통계
+    with st.expander("📋 상세 통계"):
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("**선명도 통계**")
+            st.write(f"평균: {df['sharp'].mean():.3f}")
+            st.write(f"중앙값: {df['sharp'].median():.3f}")
+            st.write(f"표준편차: {df['sharp'].std():.3f}")
+            st.write(f"최소: {df['sharp'].min():.3f}")
+            st.write(f"최대: {df['sharp'].max():.3f}")
+
+        with col2:
+            st.markdown("**디포커스 통계**")
+            st.write(f"평균: {df['defocus'].mean():.3f}")
+            st.write(f"중앙값: {df['defocus'].median():.3f}")
+            st.write(f"표준편차: {df['defocus'].std():.3f}")
+            st.write(f"최소: {df['defocus'].min():.3f}")
+            st.write(f"최대: {df['defocus'].max():.3f}")
+
+        with col3:
+            st.markdown("**모션블러 통계**")
+            st.write(f"평균: {df['motion'].mean():.3f}")
+            st.write(f"중앙값: {df['motion'].median():.3f}")
+            st.write(f"표준편차: {df['motion'].std():.3f}")
+            st.write(f"최소: {df['motion'].min():.3f}")
+            st.write(f"최대: {df['motion'].max():.3f}")
+
+    # Row 5: 권장 사항
+    st.divider()
+    st.markdown("#### 💡 권장 사항")
+
+    recommendations = []
+
+    if sharp_pct < 50:
+        recommendations.append(
+            "⚠️ 선명한 이미지 비율이 낮습니다. 삼각대 사용, 손떨림 방지, 빠른 셔터 속도를 권장합니다."
+        )
+
+    if uncertain_pct > 20:
+        recommendations.append(
+            "⚠️ 불확실한 이미지가 많습니다. 수동 검토를 권장합니다."
+        )
+
+    if avg_confidence < 0.6:
+        recommendations.append(
+            "📌 전반적인 신뢰도가 낮습니다. 임계값을 조정하거나 수동 분류를 고려하세요."
+        )
+
+    if motion_pct > 30:
+        recommendations.append(
+            "📸 모션블러가 많습니다. 셔터 속도를 높이거나 피사체가 정지한 순간을 포착하세요."
+        )
+
+    if defocus_pct > 30:
+        recommendations.append(
+            "🌫️ 아웃포커스가 많습니다. 자동 초점(AF) 설정을 확인하거나 수동 초점을 사용하세요."
+        )
+
+    if not recommendations:
+        recommendations.append("✅ 전반적으로 양호한 이미지 품질입니다!")
+
+    for rec in recommendations:
+        st.info(rec)
+
+
+# ---------------------------------------------------------------------
 # 페이지/모드 설정
 # ---------------------------------------------------------------------
 st.set_page_config(page_title="통합 이미지 품질 검사", layout="wide", page_icon="📷")
@@ -517,24 +748,18 @@ else:
 
         scores: Dict[str, dict] = st.session_state.get("scores", {})
         if scores:
-            rows = [{"path": p,
-                     "sharp": sc["sharp_score"],
-                     "defocus": sc["defocus_score"],
-                     "motion": sc["motion_score"]}
-                    for p, sc in scores.items()]
-            df_view = pd.DataFrame(rows)
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.metric("총 이미지", len(scores))
-            with c2:
-                st.metric("평균 Sharp", round(df_view["sharp"].mean(), 3))
-            with c3:
-                st.metric("평균 Motion", round(df_view["motion"].mean(), 3))
-            st.dataframe(df_view.head(500), use_container_width=True)
+            # 종합 메트릭스 대시보드 표시
+            show_metrics_dashboard(scores)
 
-            # 간단 분포 차트(선택)
-            st.write("분포(상위 500)")
-            st.bar_chart(df_view.head(500)[["sharp", "defocus", "motion"]])
+            # 상세 데이터 테이블 (옵션)
+            with st.expander("📋 상세 데이터 테이블 보기"):
+                rows = [{"path": p,
+                         "sharp": sc["sharp_score"],
+                         "defocus": sc["defocus_score"],
+                         "motion": sc["motion_score"]}
+                        for p, sc in scores.items()]
+                df_view = pd.DataFrame(rows)
+                st.dataframe(df_view, use_container_width=True, height=400)
 
     # 라벨링
     with tab2:
