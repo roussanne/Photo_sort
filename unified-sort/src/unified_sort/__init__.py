@@ -236,6 +236,30 @@ except (ImportError, ModuleNotFoundError) as e:
         return {"torch_available": False}
 
 # =====================================================================
+# Google Drive 통합 모듈 임포트
+# =====================================================================
+
+try:
+    from .gdrive import (
+        GDriveUploader,
+        is_available as gdrive_is_available,
+        setup_credentials,
+        get_credentials_instructions,
+    )
+    _GDRIVE_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: Google Drive module import failed: {e}")
+    _GDRIVE_AVAILABLE = False
+    def GDriveUploader(*args, **kwargs):
+        raise NotImplementedError("Google Drive module not available")
+    def gdrive_is_available(*args, **kwargs):
+        return False
+    def setup_credentials(*args, **kwargs):
+        raise NotImplementedError("Google Drive module not available")
+    def get_credentials_instructions(*args, **kwargs):
+        return "Google Drive integration not available (dependencies not installed)"
+
+# =====================================================================
 # 공개 API 정의
 # =====================================================================
 
@@ -294,6 +318,12 @@ __all__ = [
     "fuse_scores",
     "nn_is_available",
     "get_device_info",
+
+    # Google Drive 통합
+    "GDriveUploader",
+    "gdrive_is_available",
+    "setup_credentials",
+    "get_credentials_instructions",
 ]
 
 # =====================================================================
@@ -316,6 +346,7 @@ def check_installation() -> dict:
         "detection": _DETECTION_AVAILABLE,
         "exif": _EXIF_AVAILABLE,
         "nn_iqa": _NN_IQA_AVAILABLE,
+        "gdrive": _GDRIVE_AVAILABLE,
     }
     
     # 선택적 의존성 체크
@@ -355,10 +386,10 @@ def print_status():
     print("=" * 50)
     
     print("\n[Core Modules]")
-    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif", "nn_iqa"]:
+    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif", "nn_iqa", "gdrive"]:
         symbol = "✓" if status.get(module, False) else "✗"
         print(f"  {symbol} {module}")
-    
+
     print("\n[Optional Features]")
     features = {
         "heif_support": "HEIC/HEIF images (iPhone photos)",
@@ -372,10 +403,10 @@ def print_status():
         print(f"  {symbol} {description}")
     
     print("\n" + "=" * 50)
-    
+
     # 권장 사항
     missing = [k for k, v in status.items() if not v and k in features]
-    if missing:
+    if missing or not status.get("gdrive", False):
         print("\nTo enable all features, install:")
         if "heif_support" in missing:
             print("  pip install pillow-heif")
@@ -385,6 +416,8 @@ def print_status():
             print("  pip install send2trash")
         if "pytorch" in missing:
             print("  pip install torch torchvision")
+        if not status.get("gdrive", False):
+            print("  pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
 
 
 # =====================================================================
