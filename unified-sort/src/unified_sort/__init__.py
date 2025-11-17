@@ -203,6 +203,39 @@ except (ImportError, ModuleNotFoundError) as e:
         raise NotImplementedError("EXIF module not available")
 
 # =====================================================================
+# Deep Learning NR-IQA 모듈 임포트
+# =====================================================================
+
+try:
+    from .nn_iqa import (
+        NNQuality,
+        get_model,
+        unload_model,
+        predict_quality,
+        fuse_scores,
+        is_available as nn_is_available,
+        get_device_info,
+    )
+    _NN_IQA_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: NN-IQA module import failed: {e}")
+    _NN_IQA_AVAILABLE = False
+    def NNQuality(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def get_model(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def unload_model(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def predict_quality(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def fuse_scores(*args, **kwargs):
+        raise NotImplementedError("NN-IQA module not available")
+    def nn_is_available(*args, **kwargs):
+        return False
+    def get_device_info(*args, **kwargs):
+        return {"torch_available": False}
+
+# =====================================================================
 # 공개 API 정의
 # =====================================================================
 
@@ -252,6 +285,15 @@ __all__ = [
     "compute_exif_adjustment_factors",
     "apply_exif_adjustment",
     "get_blur_risk_assessment",
+
+    # Deep Learning NR-IQA
+    "NNQuality",
+    "get_model",
+    "unload_model",
+    "predict_quality",
+    "fuse_scores",
+    "nn_is_available",
+    "get_device_info",
 ]
 
 # =====================================================================
@@ -273,6 +315,7 @@ def check_installation() -> dict:
         "auto_sort": _AUTO_SORT_AVAILABLE,
         "detection": _DETECTION_AVAILABLE,
         "exif": _EXIF_AVAILABLE,
+        "nn_iqa": _NN_IQA_AVAILABLE,
     }
     
     # 선택적 의존성 체크
@@ -312,7 +355,7 @@ def print_status():
     print("=" * 50)
     
     print("\n[Core Modules]")
-    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif"]:
+    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif", "nn_iqa"]:
         symbol = "✓" if status.get(module, False) else "✗"
         print(f"  {symbol} {module}")
     
