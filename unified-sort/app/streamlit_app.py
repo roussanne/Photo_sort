@@ -380,6 +380,208 @@ def show_metrics_dashboard(scores: Dict[str, dict], analysis_time: float = 0.0):
 
 
 # ---------------------------------------------------------------------
+# 이미지 비교 뷰
+# ---------------------------------------------------------------------
+def find_similar_images(paths: List[str], hash_threshold: int = 8) -> List[Tuple[str, str, int]]:
+    """
+    pHash 기반으로 유사한 이미지 쌍을 찾습니다.
+
+    Args:
+        paths: 이미지 경로 리스트
+        hash_threshold: Hamming 거리 임계값 (낮을수록 엄격)
+
+    Returns:
+        (path1, path2, hamming_distance) 튜플 리스트
+    """
+    if len(paths) < 2:
+        return []
+
+    # pHash 계산
+    hash_map = {}
+    for path in paths:
+        try:
+            img = imread_any_compat(path)
+            if img is None:
+                continue
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            phash = phash_from_gray(gray)
+            hash_map[path] = phash
+        except Exception:
+            continue
+
+    # 유사 이미지 쌍 찾기
+    similar_pairs = []
+    path_list = list(hash_map.keys())
+
+    for i in range(len(path_list)):
+        for j in range(i + 1, len(path_list)):
+            path1, path2 = path_list[i], path_list[j]
+            dist = hamming_dist(hash_map[path1], hash_map[path2])
+
+            if dist <= hash_threshold:
+                similar_pairs.append((path1, path2, dist))
+
+    # Hamming 거리 순으로 정렬 (가장 유사한 것부터)
+    similar_pairs.sort(key=lambda x: x[2])
+
+    return similar_pairs
+
+
+def show_image_comparison(
+    path1: str,
+    path2: str,
+    scores1: Optional[Dict[str, float]] = None,
+    scores2: Optional[Dict[str, float]] = None,
+    hamming_dist: Optional[int] = None
+):
+    """
+    두 이미지를 나란히 비교하여 표시합니다.
+
+    Args:
+        path1: 첫 번째 이미지 경로
+        path2: 두 번째 이미지 경로
+        scores1: 첫 번째 이미지의 품질 점수
+        scores2: 두 번째 이미지의 품질 점수
+        hamming_dist: pHash Hamming 거리 (유사도)
+    """
+    st.markdown("### 🔍 이미지 비교")
+
+    # 상단 정보
+    if hamming_dist is not None:
+        similarity_pct = max(0, (64 - hamming_dist) / 64 * 100)
+        st.info(f"📊 유사도: {similarity_pct:.1f}% (Hamming 거리: {hamming_dist})")
+
+    # 두 열로 나누어 표시
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 이미지 A")
+        st.caption(Path(path1).name)
+
+        # 이미지 로드
+        img1 = load_fullres(path1, max_side=800)
+        if img1 is not None:
+            st.image(img1, use_container_width=True)
+
+        # 점수 표시
+        if scores1:
+            sharp = scores1.get("sharp_score", 0)
+            defocus = scores1.get("defocus_score", 0)
+            motion = scores1.get("motion_score", 0)
+
+            st.metric("선명도", f"{sharp:.1%}")
+            st.metric("디포커스", f"{defocus:.1%}")
+            st.metric("모션블러", f"{motion:.1%}")
+
+            # 품질 판정
+            if sharp > max(defocus, motion):
+                st.success("✅ 선명")
+            elif motion > defocus:
+                st.warning("📸 모션블러")
+            else:
+                st.warning("🌫️ 아웃포커스")
+
+        # 파일 정보
+        try:
+            file_size = Path(path1).stat().st_size
+            st.caption(f"크기: {file_size / 1024:.1f} KB")
+        except Exception:
+            pass
+
+        # 액션 버튼
+        if st.button("🗑️ 이 이미지 삭제", key=f"delete_{path1}", use_container_width=True):
+            try:
+                if send2trash:
+                    send2trash(path1)
+                    st.success("휴지통으로 이동됨")
+                else:
+                    os.remove(path1)
+                    st.success("삭제됨")
+                st.rerun()
+            except Exception as e:
+                st.error(f"삭제 실패: {e}")
+
+    with col2:
+        st.markdown("#### 이미지 B")
+        st.caption(Path(path2).name)
+
+        # 이미지 로드
+        img2 = load_fullres(path2, max_side=800)
+        if img2 is not None:
+            st.image(img2, use_container_width=True)
+
+        # 점수 표시
+        if scores2:
+            sharp = scores2.get("sharp_score", 0)
+            defocus = scores2.get("defocus_score", 0)
+            motion = scores2.get("motion_score", 0)
+
+            st.metric("선명도", f"{sharp:.1%}")
+            st.metric("디포커스", f"{defocus:.1%}")
+            st.metric("모션블러", f"{motion:.1%}")
+
+            # 품질 판정
+            if sharp > max(defocus, motion):
+                st.success("✅ 선명")
+            elif motion > defocus:
+                st.warning("📸 모션블러")
+            else:
+                st.warning("🌫️ 아웃포커스")
+
+        # 파일 정보
+        try:
+            file_size = Path(path2).stat().st_size
+            st.caption(f"크기: {file_size / 1024:.1f} KB")
+        except Exception:
+            pass
+
+        # 액션 버튼
+        if st.button("🗑️ 이 이미지 삭제", key=f"delete_{path2}", use_container_width=True):
+            try:
+                if send2trash:
+                    send2trash(path2)
+                    st.success("휴지통으로 이동됨")
+                else:
+                    os.remove(path2)
+                    st.success("삭제됨")
+                st.rerun()
+            except Exception as e:
+                st.error(f"삭제 실패: {e}")
+
+    # 하단 비교 정보
+    st.divider()
+
+    if scores1 and scores2:
+        st.markdown("#### 📈 점수 비교")
+
+        comparison_df = pd.DataFrame({
+            "메트릭": ["선명도", "디포커스", "모션블러"],
+            "이미지 A": [
+                scores1.get("sharp_score", 0),
+                scores1.get("defocus_score", 0),
+                scores1.get("motion_score", 0)
+            ],
+            "이미지 B": [
+                scores2.get("sharp_score", 0),
+                scores2.get("defocus_score", 0),
+                scores2.get("motion_score", 0)
+            ]
+        })
+
+        st.dataframe(comparison_df, use_container_width=True)
+
+        # 권장사항
+        sharp_diff = scores1.get("sharp_score", 0) - scores2.get("sharp_score", 0)
+
+        if abs(sharp_diff) < 0.05:
+            st.info("💡 두 이미지의 품질이 비슷합니다. 다른 기준으로 선택하세요.")
+        elif sharp_diff > 0.1:
+            st.success("💡 이미지 A가 더 선명합니다.")
+        elif sharp_diff < -0.1:
+            st.success("💡 이미지 B가 더 선명합니다.")
+
+
+# ---------------------------------------------------------------------
 # 페이지/모드 설정
 # ---------------------------------------------------------------------
 st.set_page_config(page_title="통합 이미지 품질 검사", layout="wide", page_icon="📷")
@@ -715,7 +917,7 @@ if is_simple:
 # 고급 모드
 # ---------------------------------------------------------------------
 else:
-    tab1, tab2, tab3 = st.tabs(["📊 대시보드", "🖼️ 라벨링", "📈 유틸/내보내기"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 대시보드", "🖼️ 라벨링", "🔍 중복 비교", "📈 유틸/내보내기"])
 
     # 대시보드
     with tab1:
@@ -1072,8 +1274,96 @@ else:
                             st.session_state["labels"][best_p] = best_keep_label
                             st.success(f"베스트: {Path(best_p).name}")
 
-    # 유틸/내보내기
+    # 중복 비교
     with tab3:
+        st.markdown("### 🔍 중복/유사 이미지 비교")
+        st.caption("pHash 기반으로 유사한 이미지를 찾아 비교합니다.")
+
+        paths: List[str] = st.session_state.get("paths", [])
+        scores: Dict[str, dict] = st.session_state.get("scores", {})
+
+        if not paths:
+            st.info("먼저 대시보드에서 전체 분석을 실행하세요.")
+        else:
+            # 설정
+            col1, col2 = st.columns(2)
+            with col1:
+                hash_threshold = st.slider(
+                    "유사도 임계값 (Hamming 거리)",
+                    min_value=0,
+                    max_value=20,
+                    value=8,
+                    help="낮을수록 엄격 (0=완전동일, 20=매우 유사)"
+                )
+
+            with col2:
+                if st.button("🔍 유사 이미지 찾기", type="primary"):
+                    with st.spinner("유사 이미지 검색 중..."):
+                        similar_pairs = find_similar_images(paths, hash_threshold)
+                        st.session_state["similar_pairs"] = similar_pairs
+                        st.success(f"✅ {len(similar_pairs)}개 유사 쌍 발견")
+
+            st.divider()
+
+            # 결과 표시
+            similar_pairs: List[Tuple[str, str, int]] = st.session_state.get("similar_pairs", [])
+
+            if not similar_pairs:
+                st.info("'유사 이미지 찾기' 버튼을 눌러 검색하세요.")
+            else:
+                st.markdown(f"#### 📋 발견된 유사 이미지 ({len(similar_pairs)}쌍)")
+
+                # 페이지네이션
+                pairs_per_page = 5
+                total_pages = (len(similar_pairs) + pairs_per_page - 1) // pairs_per_page
+
+                page_num = st.number_input(
+                    "페이지",
+                    min_value=1,
+                    max_value=max(1, total_pages),
+                    value=1,
+                    step=1
+                )
+
+                start_idx = (page_num - 1) * pairs_per_page
+                end_idx = min(start_idx + pairs_per_page, len(similar_pairs))
+
+                # 현재 페이지의 쌍들 표시
+                for idx in range(start_idx, end_idx):
+                    path1, path2, dist = similar_pairs[idx]
+
+                    st.markdown(f"**쌍 #{idx + 1}** (Hamming 거리: {dist})")
+
+                    # 점수 가져오기
+                    scores1 = scores.get(path1)
+                    scores2 = scores.get(path2)
+
+                    # 비교 표시
+                    show_image_comparison(path1, path2, scores1, scores2, dist)
+
+                    st.markdown("---")
+
+                # 통계 정보
+                with st.expander("📊 중복 통계"):
+                    total_duplicates = len(similar_pairs)
+                    avg_distance = sum(p[2] for p in similar_pairs) / total_duplicates if total_duplicates > 0 else 0
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("총 유사 쌍", total_duplicates)
+                    with col2:
+                        st.metric("평균 Hamming 거리", f"{avg_distance:.1f}")
+                    with col3:
+                        exact_duplicates = sum(1 for p in similar_pairs if p[2] == 0)
+                        st.metric("정확한 중복", exact_duplicates)
+
+                    # 히스토그램
+                    if similar_pairs:
+                        distances = [p[2] for p in similar_pairs]
+                        st.bar_chart(pd.Series(distances).value_counts().sort_index())
+
+    # 유틸/내보내기
+    with tab4:
         labels: Dict[str, str] = st.session_state.get("labels", {})
         move_or_copy = st.selectbox("내보내기 방식", ["copy", "move"])
 
