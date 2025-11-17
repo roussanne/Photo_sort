@@ -152,6 +152,57 @@ except (ImportError, ModuleNotFoundError) as e:
         raise NotImplementedError("Auto sort not available")
 
 # =====================================================================
+# 얼굴 검출 모듈 임포트
+# =====================================================================
+
+try:
+    from .detection import (
+        detect_faces,
+        compute_face_region_sharpness,
+        apply_face_prior,
+        get_face_coverage_ratio,
+        visualize_face_detection,
+    )
+    _DETECTION_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: Detection module import failed: {e}")
+    _DETECTION_AVAILABLE = False
+    def detect_faces(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def compute_face_region_sharpness(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def apply_face_prior(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def get_face_coverage_ratio(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+    def visualize_face_detection(*args, **kwargs):
+        raise NotImplementedError("Detection not available")
+
+# =====================================================================
+# EXIF 메타데이터 모듈 임포트
+# =====================================================================
+
+try:
+    from .exif_adjust import (
+        extract_exif_data,
+        compute_exif_adjustment_factors,
+        apply_exif_adjustment,
+        get_blur_risk_assessment,
+    )
+    _EXIF_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: EXIF module import failed: {e}")
+    _EXIF_AVAILABLE = False
+    def extract_exif_data(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def compute_exif_adjustment_factors(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def apply_exif_adjustment(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+    def get_blur_risk_assessment(*args, **kwargs):
+        raise NotImplementedError("EXIF module not available")
+
+# =====================================================================
 # 공개 API 정의
 # =====================================================================
 
@@ -188,6 +239,19 @@ __all__ = [
     "compute_adaptive_thresholds",
     "get_classification_stats",
     "suggest_config_adjustments",
+
+    # 얼굴 검출
+    "detect_faces",
+    "compute_face_region_sharpness",
+    "apply_face_prior",
+    "get_face_coverage_ratio",
+    "visualize_face_detection",
+
+    # EXIF 메타데이터
+    "extract_exif_data",
+    "compute_exif_adjustment_factors",
+    "apply_exif_adjustment",
+    "get_blur_risk_assessment",
 ]
 
 # =====================================================================
@@ -197,7 +261,7 @@ __all__ = [
 def check_installation() -> dict:
     """
     패키지의 설치 상태를 확인합니다.
-    
+
     Returns:
         각 모듈의 사용 가능 여부를 담은 딕셔너리
     """
@@ -207,6 +271,8 @@ def check_installation() -> dict:
         "helpers": _HELPERS_AVAILABLE,
         "pipeline": _PIPELINE_AVAILABLE,
         "auto_sort": _AUTO_SORT_AVAILABLE,
+        "detection": _DETECTION_AVAILABLE,
+        "exif": _EXIF_AVAILABLE,
     }
     
     # 선택적 의존성 체크
@@ -246,7 +312,7 @@ def print_status():
     print("=" * 50)
     
     print("\n[Core Modules]")
-    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort"]:
+    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort", "detection", "exif"]:
         symbol = "✓" if status.get(module, False) else "✗"
         print(f"  {symbol} {module}")
     
