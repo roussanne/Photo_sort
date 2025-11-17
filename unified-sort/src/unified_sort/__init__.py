@@ -103,7 +103,7 @@ except (ImportError, ModuleNotFoundError) as e:
 
 try:
     from .pipeline import (
-        analyze_one_full_hybrid, 
+        analyze_one_full_hybrid,
         batch_analyze_full_hybrid,
         unload_dl_model,
     )
@@ -119,33 +119,75 @@ except (ImportError, ModuleNotFoundError) as e:
         raise NotImplementedError("Pipeline not available")
 
 # =====================================================================
+# 자동 분류 모듈 임포트
+# =====================================================================
+
+try:
+    from .auto_sort import (
+        AutoSortConfig,
+        ClassificationResult,
+        classify_with_confidence,
+        batch_classify,
+        compute_adaptive_thresholds,
+        get_classification_stats,
+        suggest_config_adjustments,
+    )
+    _AUTO_SORT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"Warning: Auto sort import failed: {e}")
+    _AUTO_SORT_AVAILABLE = False
+    def AutoSortConfig(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def ClassificationResult(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def classify_with_confidence(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def batch_classify(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def compute_adaptive_thresholds(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def get_classification_stats(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+    def suggest_config_adjustments(*args, **kwargs):
+        raise NotImplementedError("Auto sort not available")
+
+# =====================================================================
 # 공개 API 정의
 # =====================================================================
 
 __all__ = [
     # 버전 정보
     "__version__",
-    
+
     # 핵심 함수
     "list_images",
     "batch_analyze",
     "load_thumbnail",
     "compute_scores_advanced",
-    
+
     # I/O
     "imread_any",
     "export_labeled_dataset",
-    
+
     # 헬퍼
     "load_fullres",
     "phash_from_gray",
     "hamming_dist",
     "make_widget_key",
-    
+
     # 하이브리드 파이프라인
     "analyze_one_full_hybrid",
     "batch_analyze_full_hybrid",
     "unload_dl_model",
+
+    # 자동 분류
+    "AutoSortConfig",
+    "ClassificationResult",
+    "classify_with_confidence",
+    "batch_classify",
+    "compute_adaptive_thresholds",
+    "get_classification_stats",
+    "suggest_config_adjustments",
 ]
 
 # =====================================================================
@@ -164,6 +206,7 @@ def check_installation() -> dict:
         "io_utils": _IO_AVAILABLE,
         "helpers": _HELPERS_AVAILABLE,
         "pipeline": _PIPELINE_AVAILABLE,
+        "auto_sort": _AUTO_SORT_AVAILABLE,
     }
     
     # 선택적 의존성 체크
@@ -203,7 +246,7 @@ def print_status():
     print("=" * 50)
     
     print("\n[Core Modules]")
-    for module in ["core", "io_utils", "helpers", "pipeline"]:
+    for module in ["core", "io_utils", "helpers", "pipeline", "auto_sort"]:
         symbol = "✓" if status.get(module, False) else "✗"
         print(f"  {symbol} {module}")
     

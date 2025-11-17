@@ -586,10 +586,25 @@ else:
                         scores[p] = sc
 
                     s, d, m = sc["sharp_score"], sc["defocus_score"], sc["motion_score"]
-                    pred = max(("sharp", s), ("defocus", d), ("motion", m), key=lambda x: x[1])[0]
+
+                    # 신뢰도 계산 및 표시
+                    class_scores = [("sharp", s), ("defocus", d), ("motion", m)]
+                    class_scores.sort(key=lambda x: x[1], reverse=True)
+                    pred = class_scores[0][0]
+                    margin = class_scores[0][1] - class_scores[1][1]
+
+                    # 신뢰도 아이콘 표시
+                    confidence_icon = ""
+                    if margin < 0.10:
+                        confidence_icon = "⚠️"  # 매우 불확실
+                    elif margin < 0.20:
+                        confidence_icon = "⚡"  # 검토 권장
+                    else:
+                        confidence_icon = "✅"  # 확실함
+
                     current = st.session_state["labels"].get(p, pred)
                     new_label = col.selectbox(
-                        label=f"{Path(p).name[:20]}...\nS:{s:.2f} D:{d:.2f} M:{m:.2f}",
+                        label=f"{confidence_icon} {Path(p).name[:16]}...\nS:{s:.2f} D:{d:.2f} M:{m:.2f}\n마진: {margin:.3f}",
                         options=["sharp", "defocus", "motion"],
                         index=["sharp", "defocus", "motion"].index(current),
                         key=make_widget_key("sel_adv", p)
@@ -611,32 +626,150 @@ else:
 
             st.divider()
 
-            # 자동 라벨링(임계값 기반)
-            with st.expander("⚡ 자동 라벨링(임계값 기반)"):
-                st.caption("현재 스코어 기준으로 라벨을 일괄 부여합니다.")
-                min_sharp = st.slider("선명 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_sharp_adv")
-                min_def = st.slider("아웃포커스 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_def_adv")
-                min_mot = st.slider("모션 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_mot_adv")
-                scope = st.selectbox("대상", ["현재 페이지", "전체(분석된 항목)"], index=0, key="auto_scope")
+            # 자동 라벨링(신뢰도 기반, 개선됨)
+            with st.expander("⚡ 자동 라벨링 (신뢰도 기반 · 개선됨)"):
+                st.caption("고급 신뢰도 분석으로 정밀한 자동 분류를 수행합니다.")
 
-                if st.button("자동 라벨 적용", key="auto_label_run"):
-                    base = page_paths if scope == "현재 페이지" else list(scores.keys())
-                    applied = 0
-                    for p in base:
-                        sc = scores.get(p)
-                        if not sc:
-                            continue
-                        sharp_s, def_s, mot_s = sc["sharp_score"], sc["defocus_score"], sc["motion_score"]
-                        pred = max([("sharp", sharp_s), ("defocus", def_s), ("motion", mot_s)], key=lambda x: x[1])[0]
-                        if pred == "sharp" and sharp_s < min_sharp:
-                            pred = "defocus" if def_s >= max(min_def, mot_s) else "motion"
-                        if pred == "defocus" and def_s < min_def:
-                            pred = "sharp" if sharp_s >= max(min_sharp, mot_s) else "motion"
-                        if pred == "motion" and mot_s < min_mot:
-                            pred = "sharp" if sharp_s >= max(min_sharp, def_s) else "defocus"
-                        st.session_state["labels"][p] = pred
-                        applied += 1
-                    st.success(f"자동 라벨 적용: {applied}개")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**📊 기본 설정**")
+                    min_sharp = st.slider("선명 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_sharp_adv")
+                    min_def = st.slider("아웃포커스 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_def_adv")
+                    min_mot = st.slider("모션 최소 스코어", 0.0, 1.0, 0.35, 0.01, key="min_mot_adv")
+
+                with col2:
+                    st.markdown("**🎯 정밀 조정**")
+                    strategy = st.selectbox(
+                        "분류 전략",
+                        ["balanced", "conservative", "aggressive"],
+                        index=0,
+                        help="balanced: 균형 / conservative: 불확실하면 수동검토 / aggressive: 적극 분류",
+                        key="auto_strategy"
+                    )
+                    min_confidence = st.slider(
+                        "최소 신뢰도 (마진)",
+                        0.0, 0.5, 0.15, 0.01,
+                        help="1등과 2등 점수 차이 최소값",
+                        key="auto_confidence"
+                    )
+                    use_adaptive = st.checkbox(
+                        "적응형 임계값 사용",
+                        value=False,
+                        help="데이터셋 통계를 기반으로 임계값 자동 조정",
+                        key="auto_adaptive"
+                    )
+
+                st.markdown("**🔧 클래스 바이어스 (선택적)**")
+                col_b1, col_b2, col_b3 = st.columns(3)
+                with col_b1:
+                    sharp_bias = st.slider("선명 바이어스", -0.2, 0.2, 0.0, 0.01, key="sharp_bias")
+                with col_b2:
+                    defocus_bias = st.slider("아웃포커스 바이어스", -0.2, 0.2, 0.0, 0.01, key="defocus_bias")
+                with col_b3:
+                    motion_bias = st.slider("모션 바이어스", -0.2, 0.2, 0.0, 0.01, key="motion_bias")
+
+                scope = st.selectbox("대상", ["현재 페이지", "전체(분석된 항목)"], index=0, key="auto_scope")
+                only_uncertain = st.checkbox(
+                    "불확실 항목만 처리",
+                    value=False,
+                    help="이미 라벨이 있는 항목 중 불확실한 것만 재분류",
+                    key="auto_only_uncertain"
+                )
+
+                if st.button("🚀 자동 라벨 적용", type="primary", key="auto_label_run"):
+                    try:
+                        # 설정 생성
+                        from unified_sort import (
+                            AutoSortConfig,
+                            batch_classify,
+                            compute_adaptive_thresholds,
+                            get_classification_stats,
+                            suggest_config_adjustments,
+                        )
+
+                        config = AutoSortConfig(
+                            min_sharp=min_sharp,
+                            min_defocus=min_def,
+                            min_motion=min_mot,
+                            min_confidence=min_confidence,
+                            strategy=strategy,
+                            sharp_bias=sharp_bias,
+                            defocus_bias=defocus_bias,
+                            motion_bias=motion_bias,
+                            use_adaptive_thresholds=use_adaptive,
+                        )
+
+                        # 적응형 임계값 계산
+                        if use_adaptive:
+                            adaptive_thresh = compute_adaptive_thresholds(scores)
+                            config.min_sharp = adaptive_thresh["sharp"]
+                            config.min_defocus = adaptive_thresh["defocus"]
+                            config.min_motion = adaptive_thresh["motion"]
+                            st.info(f"📊 적응형 임계값: Sharp={adaptive_thresh['sharp']:.3f}, "
+                                   f"Defocus={adaptive_thresh['defocus']:.3f}, "
+                                   f"Motion={adaptive_thresh['motion']:.3f}")
+
+                        # 대상 선택
+                        base = page_paths if scope == "현재 페이지" else list(scores.keys())
+                        target_scores = {p: scores[p] for p in base if p in scores}
+
+                        # 분류 실행
+                        results = batch_classify(target_scores, config)
+
+                        # 라벨 적용
+                        applied = 0
+                        skipped = 0
+                        uncertain = 0
+
+                        for p, result in results.items():
+                            # 불확실 항목만 처리 옵션
+                            if only_uncertain and p in st.session_state["labels"]:
+                                if not result.needs_review:
+                                    skipped += 1
+                                    continue
+
+                            if result.label == "uncertain":
+                                uncertain += 1
+                                # 불확실한 경우 가장 높은 점수로 라벨하되, 표시
+                                fallback = result.alternative_label or "sharp"
+                                st.session_state["labels"][p] = fallback
+                            else:
+                                st.session_state["labels"][p] = result.label
+                                applied += 1
+
+                        # 통계 표시
+                        stats = get_classification_stats(results)
+
+                        st.success(f"✅ 자동 라벨 적용: {applied}개 | 불확실: {uncertain}개 | 건너뜀: {skipped}개")
+
+                        # 상세 통계
+                        with st.container():
+                            st.markdown("**📈 분류 통계**")
+                            c1, c2, c3, c4 = st.columns(4)
+                            with c1:
+                                st.metric("선명", f"{stats['sharp']} ({stats['sharp_pct']:.1f}%)")
+                            with c2:
+                                st.metric("아웃포커스", f"{stats['defocus']} ({stats['defocus_pct']:.1f}%)")
+                            with c3:
+                                st.metric("모션블러", f"{stats['motion']} ({stats['motion_pct']:.1f}%)")
+                            with c4:
+                                st.metric("불확실", f"{stats['uncertain']} ({stats['uncertain_pct']:.1f}%)")
+
+                            st.caption(f"평균 신뢰도: {stats['avg_confidence']:.3f} | "
+                                      f"평균 마진: {stats['avg_margin']:.3f} | "
+                                      f"검토 필요: {stats['needs_review']}개")
+
+                        # 제안 표시
+                        suggestions = suggest_config_adjustments(stats)
+                        if suggestions:
+                            st.markdown("**💡 조정 제안**")
+                            for suggestion in suggestions:
+                                st.info(suggestion)
+
+                    except Exception as e:
+                        st.error(f"자동 라벨링 실패: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
             # 유사도 묶기(near-duplicate)
             with st.expander("🧩 비슷한 사진 묶기(near-duplicate, pHash)"):
