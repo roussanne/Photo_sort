@@ -887,17 +887,6 @@ print(f"속도 향상: {time_single/time_multi:.2f}배")
 
 ---
 
-## 🤝 기여하기
-
-버그 리포트, 기능 제안, Pull Request를 환영합니다!
-
-### 기여 프로세스
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'feat: Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
 ### 커밋 메시지 컨벤션
 - `feat:` 새로운 기능
 - `fix:` 버그 수정
@@ -929,20 +918,6 @@ This project is licensed under the MIT License - see the [LICENSE](unified-sort/
 
 ---
 
-## 👏 감사의 말
-
-- **OpenCV 커뮤니티**: 뛰어난 영상 처리 도구
-- **Streamlit 팀**: 놀라운 UI 프레임워크
-- **PyTorch 팀**: 딥러닝 기능
-- **Google**: Drive API 및 OAuth2 인프라
-- **pytest 커뮤니티**: 훌륭한 테스트 프레임워크
-
----
-
-## 📧 연락처
-
-프로젝트 관련 문의: [GitHub Issues](https://github.com/yourusername/Photo_sort/issues)
-
 ---
 
 ## 📚 추가 문서
@@ -953,6 +928,6 @@ This project is licensed under the MIT License - see the [LICENSE](unified-sort/
 
 ---
 
-**Made with ❤️ for photographers who care about image quality**
+
 
 *Last Updated: 2025-11-17 | Version 0.1.0*
